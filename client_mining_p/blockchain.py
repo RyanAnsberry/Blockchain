@@ -80,6 +80,16 @@ class Blockchain(object):
     def last_block(self):
         return self.chain[-1]
 
+    # def proof_of_work(self, block):
+
+    #     block_string = json.dumps(block, sort_keys=True)
+    #     proof = 0
+    
+    #     while self.valid_proof(block_string, proof) is False:
+    #         proof += 1
+    
+    #     return proof
+
     @staticmethod
     def valid_proof(block_string, proof):
         """
@@ -99,6 +109,7 @@ class Blockchain(object):
 
         hash_value = hashlib.sha256(guess).hexdigest()
 
+        # Change `valid_proof` to require *6* leading zeroes.
         return hash_value[:6] == '000000'
 
 
@@ -119,25 +130,45 @@ def hello_world():
     }
     return jsonify(response), 200
 
+# Modify the `mine` endpoint to instead receive and validate or reject a new proof sent by a client.
+# It should accept a POST
 @app.route('/mine', methods=['GET', 'POST'])
 def mine():
     # Use `data = request.get_json()` to pull the data out of the POST
     data = request.get_json()
-    # Check that 'proof', and 'id' are present
-    print(data['proof'], data['id'])
-    if data['proof'] or data['id']:
-        response = {
-            'message': 'Proof or Id not present'
-        }
-        return jsonify(response), 400
-    else:
-    # Forge the new Block by adding it to the chain with the proof
-    new_block = blockchain.new_block(data['proof'])
-    response = {
-        'block': new_block
-    }
 
-    return jsonify(response), 200
+    # Check that 'proof', and 'id' are present
+    required = ['proof', 'id']
+    if not all(key in data for key in required):
+
+        # return a 400 error using `jsonify(response)` with a 'message'
+        response = {'message': "Missing values"}
+        return jsonify(response), 400
+
+    # assign variable to hold input data proof
+    input_proof = data.get('proof')
+
+    # Create a blockstring from last block
+    block_string = json.dumps(blockchain.last_block, sort_keys=True)
+    # check for valid proof
+    if blockchain.valid_proof(block_string, input_proof):
+
+        # Create new block with hash of last block + valid proof
+        previous_hash = blockchain.hash(blockchain.last_block)
+        new_block = blockchain.new_block(input_proof, previous_hash)
+
+        # Return Success and newly created block
+        response = {
+            'message': "Success! Created new block:",
+            'block': new_block
+        }
+        return jsonify(response), 201
+    else: 
+        # Return failed proof message
+        response = {
+            'message': "Proof was invalid or late"
+        }
+        return jsonify(response), 412
 
 
 @app.route('/chain', methods=['GET'])
@@ -148,9 +179,11 @@ def full_chain():
     }
     return jsonify(response), 200
 
+
+# Add an endpoint called `last_block` that returns the last block in the chain
 @app.route('/last_block', methods=['GET'])
 def last_block():
-    return blockchain.chain[ len(blockchain.chain) - 1 ]
+    return blockchain.last_block
 
 
 # Run the program on port 5000
